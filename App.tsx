@@ -3,9 +3,9 @@ import {
   LayoutDashboard, CreditCard, Calendar, Settings, TrendingUp, Wallet, Plus, FileText, 
   Trash2, Download, Upload, Filter, Target, Edit2, CheckCircle, 
   ArrowUpCircle, ArrowDownCircle, AlertTriangle, Layers, ChevronLeft, ChevronRight, X,
-  Sparkles, Landmark, PiggyBank, Menu, RefreshCw
+  Sparkles, Landmark, PiggyBank, Menu, RefreshCw, Trophy, Star, Medal, Zap, Crown
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 import { AppData, Transaction, CreditCard as ICreditCard, FixedBill } from './types';
 import * as Storage from './services/storageService';
 import { SummaryCard } from './components/SummaryCard';
@@ -14,7 +14,77 @@ import { AddTransactionModal } from './components/AddTransactionModal';
 const COLORS = { chart: ['#10b981', '#ef4444', '#eab308', '#3b82f6', '#a855f7', '#ec4899', '#f97316'] };
 const CARD_GRADIENTS = ['card-gradient-1', 'card-gradient-2', 'card-gradient-3', 'card-gradient-4'];
 
-// --- SUB-COMPONENTS EXTRACTED TO FIX RE-RENDER/FOCUS BUGS ---
+// --- GAMIFICATION COMPONENTS ---
+
+const LevelProgress = ({ totalBalance, totalInvested, txCount }: any) => {
+    // XP Logic: 1 XP per R$ 10 balance/invested + 10 XP per transaction
+    const xp = Math.floor((totalBalance + totalInvested) / 10) + (txCount * 10);
+    // Level formula: Sqrt of XP roughly
+    const level = Math.max(1, Math.floor(Math.sqrt(xp / 10)));
+    const nextLevelXp = ((level + 1) ** 2) * 10;
+    const currentLevelBaseXp = (level ** 2) * 10;
+    const progress = Math.min(100, Math.max(0, ((xp - currentLevelBaseXp) / (nextLevelXp - currentLevelBaseXp)) * 100));
+
+    let title = "Iniciante";
+    if (level > 5) title = "Organizado";
+    if (level > 10) title = "Poupador";
+    if (level > 20) title = "Investidor";
+    if (level > 30) title = "Mestre das Finanças";
+    if (level > 50) title = "Magnata";
+
+    return (
+        <div className="glass-panel p-4 rounded-2xl relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-blue-500/5 opacity-50"></div>
+            <div className="flex justify-between items-end mb-2 relative z-10">
+                <div>
+                    <div className="flex items-center gap-2 text-yellow-400 font-bold text-sm mb-1 uppercase tracking-wider">
+                        <Crown size={14} /> Nível {level}
+                    </div>
+                    <h3 className="text-xl font-bold text-white">{title}</h3>
+                </div>
+                <div className="text-right">
+                    <span className="text-xs text-zinc-400 font-mono">{xp} / {nextLevelXp} XP</span>
+                </div>
+            </div>
+            <div className="w-full bg-zinc-800 h-3 rounded-full overflow-hidden relative z-10 shadow-inner">
+                <div 
+                    className="h-full bg-gradient-to-r from-yellow-500 to-amber-600 shadow-[0_0_10px_rgba(234,179,8,0.5)] transition-all duration-1000 ease-out relative" 
+                    style={{width: `${progress}%`}}
+                >
+                    <div className="absolute inset-0 bg-white/20 animate-shimmer" style={{backgroundSize: '20px 100%'}}></div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AchievementsWidget = ({ calculations }: any) => {
+    const achievements = [
+        { id: 'saver', name: 'No Azul', desc: 'Saldo positivo', condition: calculations.accountBalance > 0, icon: CheckCircle, color: 'text-emerald-400' },
+        { id: 'investor', name: 'Investidor', desc: 'Primeiro aporte', condition: calculations.totalInvested > 0, icon: TrendingUp, color: 'text-blue-400' },
+        { id: 'wealth', name: 'Acumulador', desc: '> R$ 5k Guardados', condition: calculations.totalInvested >= 5000, icon: PiggyBank, color: 'text-purple-400' },
+        { id: 'surplus', name: 'Lucrativo', desc: 'Receita > Despesa', condition: calculations.monthIncome > calculations.monthExpense, icon: Zap, color: 'text-yellow-400' },
+        { id: 'master', name: 'Visionário', desc: '> R$ 50k Patrimônio', condition: (calculations.totalInvested + calculations.accountBalance) >= 50000, icon: Trophy, color: 'text-amber-500' },
+    ];
+
+    return (
+        <div className="glass-panel p-5 rounded-2xl">
+            <h3 className="font-bold text-zinc-200 mb-4 flex items-center gap-2">
+                <Medal size={18} className="text-yellow-500" /> Conquistas
+            </h3>
+            <div className="grid grid-cols-5 gap-2">
+                {achievements.map((ach) => (
+                    <div key={ach.id} className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all ${ach.condition ? 'bg-zinc-800/50 border-zinc-700 opacity-100 scale-100' : 'bg-transparent border-zinc-800 opacity-30 scale-90 grayscale'}`}>
+                        <ach.icon size={20} className={`mb-1 ${ach.color}`} />
+                        <span className="text-[9px] text-center font-bold text-zinc-300 hidden md:block">{ach.name}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// --- SUB-COMPONENTS ---
 
 const NavButton = ({ id, icon: Icon, label, activeTab, onClick }: any) => (
     <button onClick={() => onClick(id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 font-medium ${activeTab===id ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900/50'}`}>
@@ -25,20 +95,52 @@ const NavButton = ({ id, icon: Icon, label, activeTab, onClick }: any) => (
 const DashboardView = ({ calculations, financialIntelligence, onNewTx, onInvest, onWithdraw, setActiveTab, setEditingTx, setIsTxModalOpen }: any) => {
     const chartData = useMemo(() => {
         const g: Record<string, number> = {};
-        calculations.monthTransactions.filter((t: Transaction) => t.type === 'expense').forEach((t: Transaction) => g[t.category] = (g[t.category] || 0) + t.value);
+        calculations.monthTransactions.filter((t: Transaction) => t.type === 'expense' && !t.isInvoicePayment && t.category !== 'Investimento').forEach((t: Transaction) => g[t.category] = (g[t.category] || 0) + t.value);
         return Object.keys(g).map(k => ({ name: k, value: g[k] })).sort((a,b) => b.value - a.value);
     }, [calculations.monthTransactions]);
 
+    const flowData = [
+        { name: 'Entradas', value: calculations.monthIncome, fill: '#10b981' },
+        { name: 'Saídas', value: calculations.monthExpense, fill: '#ef4444' },
+    ];
+
     return (
       <div className="space-y-6 pb-24 lg:pb-0">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <SummaryCard title="Saldo em Conta" value={Storage.formatCurrency(calculations.accountBalance)} icon={Landmark} type={calculations.accountBalance >= 0 ? 'default' : 'expense'} subtitle="Líquido Disponível" delay="stagger-1" />
-            <SummaryCard title="Investido Total" value={Storage.formatCurrency(calculations.totalInvested)} icon={PiggyBank} type="income" subtitle="Patrimônio Acumulado" delay="stagger-2" />
-            <SummaryCard title="Entradas Mês" value={Storage.formatCurrency(calculations.monthIncome)} icon={ArrowUpCircle} type="income" delay="stagger-3" />
-            <SummaryCard title="Saídas Mês" value={Storage.formatCurrency(calculations.monthExpense)} icon={ArrowDownCircle} type="expense" delay="stagger-4" />
+        {/* Gamification Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-up stagger-1">
+            <LevelProgress 
+                totalBalance={calculations.accountBalance} 
+                totalInvested={calculations.totalInvested}
+                txCount={calculations.monthTransactions.length}
+            />
+            <AchievementsWidget calculations={calculations} />
         </div>
 
-        <div className="glass-panel border-zinc-800 rounded-2xl p-6 relative overflow-hidden animate-slide-up stagger-5 group">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up stagger-2">
+            <SummaryCard title="Saldo em Conta" value={Storage.formatCurrency(calculations.accountBalance)} icon={Landmark} type={calculations.accountBalance >= 0 ? 'default' : 'expense'} subtitle="Líquido Disponível" />
+            <SummaryCard title="Investido Total" value={Storage.formatCurrency(calculations.totalInvested)} icon={PiggyBank} type="income" subtitle="Patrimônio Acumulado" />
+            <SummaryCard title="Entradas Mês" value={Storage.formatCurrency(calculations.monthIncome)} icon={ArrowUpCircle} type="income" />
+            <SummaryCard title="Saídas Mês" value={Storage.formatCurrency(calculations.monthExpense)} icon={ArrowDownCircle} type="expense" />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col md:flex-row gap-4 animate-slide-up stagger-3">
+             <button onClick={onNewTx} className="flex-1 btn-primary py-3 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 group">
+                <Plus size={20} className="group-hover:rotate-90 transition-transform"/> Novo Lançamento
+            </button>
+            <div className="flex flex-1 gap-4">
+                <button onClick={onInvest} className="flex-1 glass-button py-3 rounded-xl font-bold text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 shadow-lg flex items-center justify-center gap-2">
+                    <Star size={20}/> Guardar
+                </button>
+                <button onClick={onWithdraw} className="flex-1 glass-button py-3 rounded-xl font-bold text-blue-400 border-blue-500/30 hover:bg-blue-500/10 shadow-lg flex items-center justify-center gap-2">
+                    <Wallet size={20}/> Resgatar
+                </button>
+            </div>
+        </div>
+
+        {/* Financial Intelligence */}
+        <div className="glass-panel border-zinc-800 rounded-2xl p-6 relative overflow-hidden animate-slide-up stagger-4 group">
             <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:opacity-30 transition-opacity duration-700 pointer-events-none transform translate-x-10 -translate-y-10 group-hover:translate-x-0 group-hover:translate-y-0">
                 <Sparkles size={120} className="text-blue-500 blur-xl"/>
             </div>
@@ -70,23 +172,10 @@ const DashboardView = ({ calculations, financialIntelligence, onNewTx, onInvest,
             </div>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4 animate-slide-up stagger-4">
-             <button onClick={onNewTx} className="flex-1 btn-primary py-3 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 group">
-                <Plus size={20} className="group-hover:rotate-90 transition-transform"/> Novo Lançamento
-            </button>
-            <div className="flex flex-1 gap-4">
-                <button onClick={onInvest} className="flex-1 glass-button py-3 rounded-xl font-bold text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 shadow-lg flex items-center justify-center gap-2">
-                    <PiggyBank size={20}/> Guardar
-                </button>
-                <button onClick={onWithdraw} className="flex-1 glass-button py-3 rounded-xl font-bold text-blue-400 border-blue-500/30 hover:bg-blue-500/10 shadow-lg flex items-center justify-center gap-2">
-                    <Wallet size={20}/> Resgatar
-                </button>
-            </div>
-        </div>
-
+        {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-up stagger-5">
              <div className="glass-panel p-6 rounded-2xl min-h-[380px] flex flex-col hover:border-zinc-600/50">
-                <h3 className="font-bold text-zinc-200 mb-6 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Distribuição de Gastos</h3>
+                <h3 className="font-bold text-zinc-200 mb-6 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Categorias</h3>
                 {chartData.length > 0 ? (
                     <div className="grow -ml-4">
                         <ResponsiveContainer width="100%" height="100%">
@@ -102,29 +191,26 @@ const DashboardView = ({ calculations, financialIntelligence, onNewTx, onInvest,
                 ) : <div className="flex flex-col items-center justify-center grow text-zinc-600 gap-2"><TrendingUp size={32} className="opacity-20"/><p>Sem dados neste mês.</p></div>}
             </div>
 
-            <div className="glass-panel p-6 rounded-2xl hover:border-zinc-600/50">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-zinc-200 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Últimas Atividades</h3>
-                    <button onClick={() => setActiveTab('transactions')} className="text-xs text-blue-400 hover:text-blue-300">Ver todas</button>
-                </div>
-                <div className="space-y-2">
-                    {calculations.monthTransactions.slice(0, 5).map((tx: Transaction) => (
-                        <div key={tx.id} onClick={() => { setEditingTx(tx); setIsTxModalOpen(true); }} className="flex justify-between items-center p-3 hover:bg-white/5 rounded-xl transition-all cursor-pointer group">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-full ${tx.type==='income'?'bg-emerald-500/10 text-emerald-500':'bg-red-500/10 text-red-500'} group-hover:scale-110 transition-transform`}>
-                                    {tx.type==='income'?<ArrowUpCircle size={16}/>:<ArrowDownCircle size={16}/>}
-                                </div>
-                                <div>
-                                    <p className="text-zinc-200 text-sm font-medium group-hover:text-white transition-colors">{tx.description}</p>
-                                    <p className="text-zinc-500 text-[11px] font-medium">{Storage.formatDate(tx.date)} • {tx.method}</p>
-                                </div>
-                            </div>
-                            <span className={`text-sm font-bold ${tx.type === 'income' ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {tx.type === 'income' ? '+' : '-'}{Storage.formatCurrency(tx.value)}
-                            </span>
-                        </div>
-                    ))}
-                    {calculations.monthTransactions.length === 0 && <p className="text-center text-zinc-500 py-10">Nenhuma atividade.</p>}
+            <div className="glass-panel p-6 rounded-2xl min-h-[380px] flex flex-col hover:border-zinc-600/50">
+                <h3 className="font-bold text-zinc-200 mb-6 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Balanço Mensal</h3>
+                <div className="grow -ml-4">
+                     <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={flowData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                            <XAxis dataKey="name" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#71717a" fontSize={10} tickFormatter={(val) => `R$ ${val}`} tickLine={false} axisLine={false} />
+                            <Tooltip 
+                                cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                                contentStyle={{background:'#09090b', border:'1px solid #27272a', borderRadius:'8px', color: '#fff'}} 
+                                formatter={(v: number)=>Storage.formatCurrency(v)} 
+                            />
+                            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                                {flowData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
         </div>
